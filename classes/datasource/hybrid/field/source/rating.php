@@ -17,7 +17,7 @@ class DataSource_Hybrid_Field_Source_Rating extends DataSource_Hybrid_Field_Sour
 	{
 		$used_sections = DB::select('from_ds')
 			->from($this->table)
-			->where('family', '=', $this->family)
+			->where('type', '=', 'source_rating')
 			->execute()
 			->as_array(NULL, 'from_ds');
 

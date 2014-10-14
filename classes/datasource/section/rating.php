@@ -112,16 +112,14 @@ class DataSource_Section_Rating extends Datasource_Section {
 
 	public function recalculate_all_rating()
 	{
-		$data = DB::select('d.id', 'd.doc_id')
-			->select(array(DB::expr('SUM(l.votes)', 'raters')))
-			->select(array(DB::expr('SUM(l.rating)', 'rating')))
-			->from(array($this->table(), 'd'))
-			->join(array('dsrating_log', 'l'), 'left')
-				->on('l.rating_id', '=', 'd.id')
-				->on('l.is_active', '>', DB::expr(0))
-			->where('d.ds_id', '=', $this->id());
+		$data = DB::select()
+			->select(array(DB::expr('COUNT(*)'), 'raters'))
+			->select(array(DB::expr('SUM(l.rating)'), 'rating'))
+			->from(array('dsrating_log', 'l'))
+			->where('l.is_active', '>', 0)
+			->group_by('l.rating_id');
 
-		foreach ($data->execute()->as_array('id') as $row)
+		foreach ($data->execute() as $row)
 		{
 			$raters = (int) $row['raters'];
 			
@@ -239,12 +237,17 @@ class DataSource_Section_Rating extends Datasource_Section {
 	 */
 	protected function _add_user_rating($field, $id, $rating, $user_id = NULL) 
 	{
-		$select = DB::select('id', (int) $user_id, 1, $this->get_valid_rating($rating), date('Y-m-d H:i:s'))
+		$select = DB::select('id', DB::expr((int) $user_id), DB::expr('"1"'))
+			->select_array(array(
+				DB::expr($this->get_valid_rating($rating)),
+				DB::expr('"' . date('Y-m-d H:i:s') . '"'),
+				DB::expr('"' . Request::$client_ip . '"')
+			))
 			->from($this->table())
 			->where($field, '=', $id);
 
 		$status = (bool) DB::insert('dsrating_log')
-			->columns(array('rating_id', 'user_id', 'is_active', 'rating', 'created_on'))
+			->columns(array('rating_id', 'user_id', 'is_active', 'rating', 'created_on', 'ip'))
 			->select($select)
 			->execute();
 		
@@ -254,6 +257,32 @@ class DataSource_Section_Rating extends Datasource_Section {
 		}
 		
 		return $status;
+	}
+	
+	/**
+	 * 
+	 * @param integer $doc_id
+	 * @return boolean
+	 */
+	public function user_is_voted($doc_id)
+	{
+		$query = DB::select('dsrating.id')
+			->from('dsrating')
+			->join('dsrating_log')
+				->on('dsrating.id', '=', 'dsrating_log.rating_id')
+			->where('dsrating.doc_id', '=', $doc_id)
+			->limit(1);
+	
+		if(Auth::is_logged_in())
+		{
+			$query->where('dsrating_log.user_id', '=', Auth::get_id());
+		}
+		else
+		{
+			$query->where('dsrating_log.ip', '=', Request::$client_ip);
+		}
+		
+		return (bool) $query->execute()->get('id');
 	}
 	
 	/**
@@ -337,12 +366,12 @@ class DataSource_Section_Rating extends Datasource_Section {
 	 */
 	public function get_document_column() 
 	{
-		if ($this->_column = NULL)
+		if ($this->_column === NULL)
 		{
 			$this->_column = DB::select('ds_id', 'name')
 				->from('dshfields')
 				->where('from_ds', '=', $this->id())
-				->where('family', '=', 'rating')
+				->where('type', '=', 'source_rating')
 				->limit(1)
 				->execute()
 				->current();
