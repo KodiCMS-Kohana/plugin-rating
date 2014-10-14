@@ -127,6 +127,6 @@ class Model_Widget_Rating_Handler extends Model_Widget_Decorator_Handler {
 	
 	protected function _get_field_value($field)
 	{
-		return Arr::get(Request::current()->query(), $field);
+		return Arr::get(Request::current()->post(), $field);
 	}
 }
