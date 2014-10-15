@@ -2,9 +2,12 @@
 
 class Model_Widget_Rating_Handler extends Model_Widget_Decorator_Handler {
 
-	const ERROR_USER_IS_VOTED = 100;
-	const ERROR_NO_AUTH = 200;
-
+	const ERROR_USER_IS_VOTED = 301;
+	const ERROR_NO_AUTH = 300;
+	
+	const SUCCESS_INSERT = 200;
+	const SUCCESS_UPDATE = 201;
+	
 	protected $_data = array(
 		'doc_id_ctx' => 'doc_id',
 		'rating_value_ctx' => 'rating',
@@ -51,28 +54,28 @@ class Model_Widget_Rating_Handler extends Model_Widget_Decorator_Handler {
 			else
 			{
 				$ds = Datasource_Data_Manager::load($this->ds_id);
-				if($ds->user_is_voted($doc_id))
+				$user_vote_id = (int) $ds->user_is_voted($doc_id);
+
+				if($user_vote_id > 0)
 				{
-					$status = FALSE;
-					$this->_response['code'] = self::ERROR_USER_IS_VOTED;
-					$this->_response['message'] = 'User is voted';
+					if (!$this->update_rating)
+					{
+						$status = FALSE;
+						$this->_response['code'] = self::ERROR_USER_IS_VOTED;
+						$this->_response['message'] = 'User is voted';
+					}
+					else
+					{
+						$status = (bool) $ds->update_vote($user_vote_id, $rating_value_ctx);
+						$this->_response['code'] = self::SUCCESS_UPDATE;
+					}
 				}
 				else
 				{
-					$exists = (bool) DB::select('id')
-						->from($ds->table())
-						->where('ds_id', '=', $ds->id())
-						->where('doc_id', '=', $doc_id)
-						->limit(1)
-						->execute()
-						->get('id');
+					$ds->create_by_document_id($doc_id);
 
-					if(!$exists)
-					{
-						$ds->create_by_document_id($doc_id);
-					}
-
-					$status = $ds->rate_document($doc_id, $rating_value_ctx, $user_id);
+					$status = (bool) $ds->rate_document($doc_id, $rating_value_ctx, $user_id);
+					$this->_response['code'] = self::SUCCESS_INSERT;
 				}
 			}
 		}
@@ -90,6 +93,7 @@ class Model_Widget_Rating_Handler extends Model_Widget_Decorator_Handler {
 		parent::set_values($data);
 		
 		$this->only_auth = (bool) Arr::get($data, 'only_auth');
+		$this->update_rating = (bool) Arr::get($data, 'update_rating');
 
 		if (empty($data['ds_id']) OR ! Datasource_Data_Manager::exists($data['ds_id']))
 		{

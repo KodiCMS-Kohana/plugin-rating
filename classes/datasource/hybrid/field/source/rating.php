@@ -2,6 +2,8 @@
 
 class DataSource_Hybrid_Field_Source_Rating extends DataSource_Hybrid_Field_Source {
 
+	protected $_is_sortable = TRUE;
+	
 	public function rules()
 	{
 		$rules = parent::rules();
@@ -47,14 +49,18 @@ class DataSource_Hybrid_Field_Source_Rating extends DataSource_Hybrid_Field_Sour
 				'id' => $value,
 				'rating' => $rating['rating'],
 				'votes' => $rating['raters'],
-				'uri' => Route::get('datasources')
+			);
+			
+			if(IS_BACKEND)
+			{
+				$result['uri'] =  Route::get('datasources')
 					->uri(array(
 						'directory' => 'rating', 'controller' => 'document', 'action' => 'view'
 					)) . URL::query(array(
 						'ds_id' => $this->from_ds,
 						'id' => $value
-					), FALSE)
-			);
+					), FALSE);
+			}
 		}
 		
 		return $result;
@@ -65,22 +71,22 @@ class DataSource_Hybrid_Field_Source_Rating extends DataSource_Hybrid_Field_Sour
 		return 'INT(11) UNSIGNED';
 	}
 	
+	public function onReadDocumentValue(array $data, DataSource_Hybrid_Document $document)
+	{
+		return $this;
+	}
+	
 	public function onCreateDocument(DataSource_Hybrid_Document $doc)
 	{
 		$ds = Datasource_Data_Manager::load($this->from_ds);
 		
-		$id = $ds->create_by_document_id($doc->id);
+		$id = $ds->create_by_document_id($doc->id, FALSE);
 		$doc->set($this->name, $id);
 	}
 	
 	public function onUpdateDocument(DataSource_Hybrid_Document $old = NULL, DataSource_Hybrid_Document $new)
 	{
-		$value = $new->get($this->name);
-		
-		if(empty($value))
-		{
-			$this->onCreateDocument($new);
-		}
+		$this->onCreateDocument($new);
 	}
 	
 	public function onRemoveDocument(DataSource_Hybrid_Document $doc)
@@ -146,5 +152,35 @@ class DataSource_Hybrid_Field_Source_Rating extends DataSource_Hybrid_Field_Sour
 		}
 		
 		return HTML::anchor($uri, $value, array('target' => 'blank'));
+	}
+	
+	public function get_query_props(Database_Query $query, DataSource_Hybrid_Agent $agent)
+	{
+		parent::get_query_props($query, $agent);
+
+		$query
+			->join('dsrating', 'left')
+				->on($this->table_column_key(), '=', 'dsrating.id')
+				->on('dsrating.ds_id', '=', DB::expr($this->from_ds))
+				->select(array('dsrating.rating', 'dsr' . $this->id));
+	}
+	
+	public function sorting_condition(Database_Query $query, $dir)
+	{
+		$query->order_by('dsr' . $this->id, $dir);
+	}
+	
+	public static function fetch_widget_field($widget, $field, $row, $fid, $recurse)
+	{
+		if($widget instanceof Model_Widget_Hybrid_Headline)
+		{
+			return (int) $row['dsr' . $fid];
+		}
+		else if($widget instanceof Model_Widget_Hybrid_Document)
+		{
+			return $field->convert_value($row[$fid]);
+		}
+		
+		return (int) $row[$fid];
 	}
 }

@@ -42,6 +42,12 @@ class DataSource_Section_Rating extends Datasource_Section {
 	 * @var string
 	 */
 	protected $_type = 'rating';
+	
+	/**
+	 *
+	 * @var string 
+	 */
+	protected $_column = NULL;
 
 	public function values(array $values = array())
 	{		
@@ -77,6 +83,11 @@ class DataSource_Section_Rating extends Datasource_Section {
 	public function create_by_document_id($doc_id, $update_doc_field = TRUE) 
 	{
 		$ds = DataSource_Section::factory('hybrid');
+
+		if($this->is_created($doc_id) > 0)
+		{
+			return $doc_id;
+		}
 		
 		$select = DB::select(array(DB::expr($this->id()), 'ds_id'), 'id', 'created_on')
 			->from($ds->table())
@@ -98,6 +109,22 @@ class DataSource_Section_Rating extends Datasource_Section {
 		return $id;
 	}
 	
+	/**
+	 * 
+	 * @param integer $doc_id
+	 * @return integer
+	 */
+	public function is_created($doc_id)
+	{
+		return DB::select('id')
+			->from($this->table())
+			->where('doc_id', '=', (int) $doc_id)
+			->where('ds_id', '=', $this->id())
+			->limit(1)
+			->execute()
+			->get('id');
+	}
+	
 	public function has_access($acl_type = 'section.edit', $check_own = TRUE, $user_id = NULL)
 	{
 		if(in_array($acl_type, array(
@@ -110,14 +137,24 @@ class DataSource_Section_Rating extends Datasource_Section {
 		return parent::has_access($acl_type, $check_own, $user_id);
 	}
 
-	public function recalculate_all_rating()
+	/**
+	 * 
+	 * @param integer $rating_id
+	 */
+	public function recalculate_all_rating($rating_id = NULL)
 	{
-		$data = DB::select()
+		$data = DB::select(array('rating_id', 'id'))
 			->select(array(DB::expr('COUNT(*)'), 'raters'))
 			->select(array(DB::expr('SUM(l.rating)'), 'rating'))
 			->from(array('dsrating_log', 'l'))
 			->where('l.is_active', '>', 0)
 			->group_by('l.rating_id');
+		
+		if (!empty($rating_id))
+		{
+			$data
+				->where('l.rating_id', '=', (int) $rating_id);
+		}
 
 		foreach ($data->execute() as $row)
 		{
@@ -229,6 +266,34 @@ class DataSource_Section_Rating extends Datasource_Section {
 	
 	/**
 	 * 
+	 * @param integer $vote_id
+	 * @param integer $rating
+	 * @return boolean
+	 */
+	public function update_vote($vote_id, $rating)
+	{
+		$status = (bool) DB::update('dsrating_log')
+			->set(array('rating' => (int) $rating))
+			->where('id', '=', (int) $vote_id)
+			->execute();
+		
+		$rating_id = DB::select('rating_id')
+			->from('dsrating_log')
+			->where('id', '=', $vote_id)
+			->limit(1)
+			->execute()
+			->get('id');
+		
+		if($status === TRUE)
+		{
+			$this->recalculate_all_rating($rating_id);
+		}
+		
+		return $status;
+	}
+	
+	/**
+	 * 
 	 * @param string $field
 	 * @param integer $id
 	 * @param integer $rating
@@ -237,36 +302,43 @@ class DataSource_Section_Rating extends Datasource_Section {
 	 */
 	protected function _add_user_rating($field, $id, $rating, $user_id = NULL) 
 	{
-		$select = DB::select('id', DB::expr((int) $user_id), DB::expr('"1"'))
+		$select = DB::select('id', array(DB::expr((int) $user_id), 'user_id'), array(DB::expr('"1"'), 'is_active'))
 			->select_array(array(
-				DB::expr($this->get_valid_rating($rating)),
+				array(DB::expr('"'.$this->get_valid_rating($rating).'"'), 'rating'),
 				DB::expr('"' . date('Y-m-d H:i:s') . '"'),
 				DB::expr('"' . Request::$client_ip . '"')
 			))
 			->from($this->table())
-			->where($field, '=', $id);
+			->where($field, '=', (int) $id);
 
-		$status = (bool) DB::insert('dsrating_log')
+		list($vore_id, $num_rows) = DB::insert('dsrating_log')
 			->columns(array('rating_id', 'user_id', 'is_active', 'rating', 'created_on', 'ip'))
 			->select($select)
 			->execute();
 		
-		if($status)
+		if($vore_id > 0)
 		{
-			$this->recalculate_all_rating();
+			$rating_id = NULL;
+
+			if($field == 'id')
+			{
+				$rating_id = (int) $id;
+			}
+	
+			$this->recalculate_all_rating($rating_id);
 		}
 		
-		return $status;
+		return $vore_id;
 	}
 	
 	/**
 	 * 
 	 * @param integer $doc_id
-	 * @return boolean
+	 * @return integer
 	 */
 	public function user_is_voted($doc_id)
 	{
-		$query = DB::select('dsrating.id')
+		$query = DB::select('dsrating_log.id')
 			->from('dsrating')
 			->join('dsrating_log')
 				->on('dsrating.id', '=', 'dsrating_log.rating_id')
@@ -282,7 +354,7 @@ class DataSource_Section_Rating extends Datasource_Section {
 			$query->where('dsrating_log.ip', '=', Request::$client_ip);
 		}
 		
-		return (bool) $query->execute()->get('id');
+		return $query->execute()->get('id', 0);
 	}
 	
 	/**

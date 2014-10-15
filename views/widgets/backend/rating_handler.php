@@ -40,6 +40,8 @@
 		<div class="col-md-offset-3 col-md-9">
 			<div class="checkbox">
 				<label><?php echo Form::checkbox('only_auth', 1, $widget->only_auth); ?> <?php echo __('Only authorized users can vote'); ?></label>
+
+				<label><?php echo Form::checkbox('update_rating', 1, $widget->update_rating); ?> <?php echo __('User can update document rating'); ?></label>
 			</div>
 		</div>
 	</div>

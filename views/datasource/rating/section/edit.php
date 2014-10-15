@@ -39,7 +39,7 @@
 	</div>
 	<div class="panel-body">
 		<div class="form-group form-inline">
-			<label class="control-label col-md-3"><?php echo __('Image size'); ?></label>
+			<label class="control-label col-md-3"><?php echo __('Rating (min/max)'); ?></label>
 			<div class="col-md-9">
 				<div class="input-group">
 					<?php echo Form::input('min_rating', $ds->min_rating, array('class' => 'form-control', 'size' => 2)); ?>
