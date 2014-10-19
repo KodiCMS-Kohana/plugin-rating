@@ -43,7 +43,7 @@
 			<div class="col-md-9">
 				<div class="input-group">
 					<?php echo Form::input('min_rating', $ds->min_rating, array('class' => 'form-control', 'size' => 2)); ?>
-					<div class="input-group-addon">x</div>
+					<div class="input-group-addon">-</div>
 					<?php echo Form::input('max_rating', $ds->max_rating, array('class' => 'form-control', 'size' => 2)); ?>
 				</div>
 			</div>

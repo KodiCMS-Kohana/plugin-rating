@@ -22,7 +22,7 @@ class Datasource_Section_Rating_Headline extends Datasource_Section_Headline {
 				'visible' => TRUE
 			),
 			'raters' => array(
-				'name' => 'Raters',
+				'name' => 'Votes',
 				'width' => 50,
 				'class' => 'text-right',
 				'visible' => TRUE
