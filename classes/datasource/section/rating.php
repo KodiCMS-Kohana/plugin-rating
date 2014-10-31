@@ -7,11 +7,12 @@
 class DataSource_Section_Rating extends Datasource_Section {
 
 	const DSR_DEVIATION = 0.49;
+
 	/**
 	 * 
 	 * @return string
 	 */
-	public static function icon()
+	public static function default_icon()
 	{
 		return 'star-half-o';
 	}
